@@ -7,7 +7,7 @@ import re
 import secrets
 import time
 from collections.abc import Mapping
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import asyncpg
@@ -174,7 +174,7 @@ async def otp_delivery(request: web.Request) -> web.Response:
         or delivery_id != request.headers.get("Idempotency-Key")
         or not 1 <= expires_in <= CODE_TTL_MAX_SECONDS
         or expires_at <= now
-        or expires_at > now.replace(microsecond=0) + __import__("datetime").timedelta(seconds=CODE_TTL_MAX_SECONDS + 30)
+        or expires_at > now.replace(microsecond=0) + timedelta(seconds=CODE_TTL_MAX_SECONDS + 30)
     ):
         return response(False, error_code="REQUEST_INVALID")
 
