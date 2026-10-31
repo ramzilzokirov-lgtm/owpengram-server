@@ -1,0 +1,43 @@
+name: VGRAM Private Server CI
+
+on:
+  push:
+    branches:
+      - vgram-private
+  pull_request:
+    branches:
+      - vgram-private
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: vgram-private-server-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Verify formatting
+        run: |
+          files="$(gofmt -l $(git ls-files '*.go'))"
+          if [ -n "$files" ]; then
+            echo "$files"
+            exit 1
+          fi
+
+      - name: Run server tests
+        run: go test ./... -count=1
