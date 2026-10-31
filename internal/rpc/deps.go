@@ -1188,6 +1188,7 @@ type Deps struct {
 	Metrics                    Metrics
 	SecretChats                SecretChatService
 	Passkey                    PasskeyService
+	Stars                      store.StarsStore
 	Themes                     ThemeService
 }
 

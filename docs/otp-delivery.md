@@ -15,12 +15,16 @@ authentication attempt succeeds.
 - One Webhook endpoint may handle both channels. `channel` and `purpose` in the
   request select the downstream template/provider.
 
-For an existing account, external delivery is additive: `auth.sendCode` and
-`auth.resendCode` first commit the same code as a durable incoming message from
-777000, then invoke the configured SMS or login-email provider. A provider
-cannot replace or invalidate that App-code. A new phone and email setup/change
-have no existing login dialog to receive the code, so those flows use only the
-configured external provider.
+For legacy accounts without the VGRAM virtual-number registry, external
+SMS delivery is additive: `auth.sendCode` and `auth.resendCode` first commit
+the same code as a durable incoming message from 777000, then invoke the
+configured provider. A provider cannot replace or invalidate that App-code.
+
+When the VGRAM virtual-number registry is enabled, VGRAM phone accounts use the
+owner-bound Telegram bot as their only login-code channel. The server skips the
+777000 fallback and fails closed if the bot provider rejects delivery. A new
+phone and email setup/change have no existing login dialog to receive the code,
+so those flows use only the configured external provider.
 
 ## Webhook v1 request
 

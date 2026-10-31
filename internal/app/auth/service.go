@@ -44,6 +44,7 @@ var (
 	// 因此 phone 校验必须前移到 auth 入口，否则 sendCode/signUp 可无限铸造
 	// phone='' 的幽灵人类账号（且因 ByPhone('') 短路永远无法再登录）。
 	ErrPhoneNumberInvalid = errors.New("phone number invalid")
+	ErrVirtualNumberUnavailable = errors.New("virtual number unavailable")
 	// ErrSystemUserLoginForbidden 表示内置系统账号被尝试绑定为普通业务会话。
 	ErrSystemUserLoginForbidden = errors.New("system user login forbidden")
 )
@@ -89,6 +90,7 @@ type Service struct {
 	dialogs                store.DialogStore
 	loginCodeDelivery      store.LoginCodeDeliveryStore
 	bots                   store.BotStore
+	virtualNumbers         virtualNumberRegistry
 	fixedCode              string
 	codeTTL                time.Duration
 	codeMaxAttempts        int
@@ -142,6 +144,11 @@ type LoginEmailOptions struct {
 	CodeLength   int
 	Store        loginEmailStore
 	Sender       otpdelivery.Sender
+}
+
+type virtualNumberRegistry interface {
+	CanLogin(ctx context.Context, phone string, userID int64) (bool, error)
+	Activate(ctx context.Context, phone string, userID int64) error
 }
 
 type authorizationRevoker interface {
@@ -223,6 +230,11 @@ func WithPasswords(passwords store.PasswordStore) Option {
 	return func(s *Service) {
 		s.passwords = passwords
 	}
+}
+
+// WithVirtualNumberRegistry restricts login and registration to bot-issued VGRAM numbers.
+func WithVirtualNumberRegistry(registry virtualNumberRegistry) Option {
+	return func(s *Service) { s.virtualNumbers = registry }
 }
 
 // WithBotLogin 启用 auth.importBotAuthorization 的 bot token 登录。
@@ -486,6 +498,15 @@ func (s *Service) SendCode(ctx context.Context, phone string) (string, error) {
 	if found {
 		issuedUserID = existing.ID
 	}
+	if s.virtualNumbers != nil {
+		allowed, checkErr := s.virtualNumbers.CanLogin(ctx, phone, issuedUserID)
+		if checkErr != nil {
+			return "", fmt.Errorf("check VGRAM virtual number: %w", checkErr)
+		}
+		if !allowed {
+			return "", ErrVirtualNumberUnavailable
+		}
+	}
 	if s.emailSignupEnabled {
 		if email, ok := domain.DecodeEmailPhone(phone); ok {
 			return s.createEmailLoginCode(ctx, phone, email, issuedUserID)
@@ -574,6 +595,9 @@ func (s *Service) invalidateLoginCodeDetached(ctx context.Context, hash, phone s
 }
 
 func (s *Service) createPhoneCode(ctx context.Context, phone string, existingUserID int64) (string, error) {
+	if s.virtualNumbers != nil && s.phoneCodeSender == nil {
+		return "", ErrLoginCodeDeliveryUnavailable
+	}
 	hash, err := randomHex(8)
 	if err != nil {
 		return "", err
@@ -608,10 +632,10 @@ func (s *Service) createPhoneCode(ctx context.Context, phone string, existingUse
 	if err := s.ensureIssuedOwnerAfterSet(ctx, hash, rec); err != nil {
 		return "", err
 	}
-	// Existing accounts always retain the original durable App-code path. Commit
-	// it before attempting the external mirror so a provider cannot replace the
-	// message fact or leave an externally disclosed code without local state.
-	if existingUserID != 0 {
+	// Legacy accounts retain the durable in-app code path before the external
+	// mirror. VGRAM virtual-number accounts deliberately skip it: their only
+	// login-code channel is the owner-bound Telegram bot delivery provider.
+	if existingUserID != 0 && s.virtualNumbers == nil {
 		if err := s.deliverLoginCode(ctx, existingUserID, hash, code); err != nil {
 			return "", s.rollbackUndeliveredCode(ctx, hash, err)
 		}
@@ -628,7 +652,7 @@ func (s *Service) createPhoneCode(ctx context.Context, phone string, existingUse
 			Code:       code,
 			ExpiresAt:  expiresAt,
 		}
-		if existingUserID != 0 {
+		if existingUserID != 0 && s.virtualNumbers == nil {
 			s.deliverOTPWithAppFallback(ctx, s.phoneCodeSender, request)
 		} else if err := deliverOTP(ctx, s.phoneCodeSender, request); err != nil {
 			return "", s.rollbackUndeliveredCode(ctx, hash, fmt.Errorf("send login SMS code: %w", err))
@@ -638,8 +662,8 @@ func (s *Service) createPhoneCode(ctx context.Context, phone string, existingUse
 		}
 		return hash, nil
 	}
-	// 新手机号还没有 owner/dialog，不能在签发阶段创建 777000 消息；
-	// 已有账号的 App-code 已在上面的 provider 分支之前 durable 提交。
+	// 新账号没有 owner/dialog，不能在签发阶段创建 777000 消息。
+	// VGRAM 虚拟号码始终只通过上面的 Telegram bot provider 投递验证码。
 	return hash, nil
 }
 
@@ -1161,6 +1185,15 @@ func (s *Service) verifyLoginCode(ctx context.Context, phone, phoneCodeHash, cod
 		}
 		beforeUserID = before.ID
 	}
+	if s.virtualNumbers != nil {
+		allowed, checkErr := s.virtualNumbers.CanLogin(ctx, phone, beforeUserID)
+		if checkErr != nil {
+			return store.PhoneCode{}, domain.User{}, false, fmt.Errorf("check VGRAM virtual number: %w", checkErr)
+		}
+		if !allowed {
+			return store.PhoneCode{}, domain.User{}, false, ErrVirtualNumberUnavailable
+		}
+	}
 	if rec.IssuedUserID != beforeUserID {
 		s.invalidateLoginCodeDetached(ctx, phoneCodeHash, phone)
 		return store.PhoneCode{}, domain.User{}, false, ErrCodeInvalid
@@ -1195,6 +1228,16 @@ func (s *Service) verifyLoginCode(ctx context.Context, phone, phoneCodeHash, cod
 	afterUserID := int64(0)
 	if afterFound {
 		afterUserID = after.ID
+	}
+	if s.virtualNumbers != nil {
+		allowed, checkErr := s.virtualNumbers.CanLogin(ctx, phone, afterUserID)
+		if checkErr != nil {
+			return store.PhoneCode{}, domain.User{}, false, fmt.Errorf("recheck VGRAM virtual number: %w", checkErr)
+		}
+		if !allowed {
+			s.invalidateLoginCodeDetached(ctx, phoneCodeHash, phone)
+			return store.PhoneCode{}, domain.User{}, false, ErrVirtualNumberUnavailable
+		}
 	}
 	recordOwnerMismatch := result.Status != store.LoginCodeVerifyMissing && result.Record.IssuedUserID != rec.IssuedUserID
 	if beforeUserID != afterUserID || recordOwnerMismatch {
@@ -1262,6 +1305,15 @@ func (s *Service) SignUp(ctx context.Context, auth domain.Authorization, phone, 
 	}
 	if systemLoginPhoneForbidden(phone) {
 		return domain.User{}, domain.Message{}, ErrSystemUserLoginForbidden
+	}
+	if s.virtualNumbers != nil {
+		allowed, checkErr := s.virtualNumbers.CanLogin(ctx, phone, 0)
+		if checkErr != nil {
+			return domain.User{}, domain.Message{}, fmt.Errorf("check VGRAM virtual number: %w", checkErr)
+		}
+		if !allowed {
+			return domain.User{}, domain.Message{}, ErrVirtualNumberUnavailable
+		}
 	}
 	firstName = strings.TrimSpace(firstName)
 	lastName = strings.TrimSpace(lastName)
@@ -1360,6 +1412,11 @@ func (s *Service) SignUp(ctx context.Context, auth domain.Authorization, phone, 
 	u, err := s.users.Create(ctx, newUser)
 	if err != nil {
 		return domain.User{}, domain.Message{}, err
+	}
+	if s.virtualNumbers != nil {
+		if err := s.virtualNumbers.Activate(ctx, phone, u.ID); err != nil {
+			return domain.User{}, domain.Message{}, fmt.Errorf("activate VGRAM virtual number: %w", err)
+		}
 	}
 	if rec.VerifiedEmail && strings.TrimSpace(rec.PendingEmail) != "" && s.loginEmails != nil {
 		if err := s.loginEmails.SetLoginEmail(ctx, u.ID, rec.PendingEmail); err != nil {

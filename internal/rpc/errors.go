@@ -450,7 +450,8 @@ func quoteTextInvalidErr() error { return tgerr.New(400, "QUOTE_TEXT_INVALID") }
 func signInErr(err error) error {
 	switch {
 	case errors.Is(err, auth.ErrPhoneNumberInvalid),
-		errors.Is(err, auth.ErrSystemUserLoginForbidden):
+		errors.Is(err, auth.ErrSystemUserLoginForbidden),
+		errors.Is(err, auth.ErrVirtualNumberUnavailable):
 		return phoneNumberInvalidErr()
 	case errors.Is(err, auth.ErrCodeInvalid):
 		return tgerr.New(400, "PHONE_CODE_INVALID")
