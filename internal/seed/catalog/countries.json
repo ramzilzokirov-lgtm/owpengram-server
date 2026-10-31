@@ -842,7 +842,7 @@
     },
     {
       "iso2": "FT",
-      "default_name": "Anonymous Numbers",
+      "default_name": "VGRAM Virtual Numbers",
       "country_codes": [
         {
           "country_code": "888",
