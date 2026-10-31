@@ -59,7 +59,7 @@ async def issue_number(telegram_user_id: int, chat_id: int) -> str:
             return str(existing)
 
         for _ in range(20):
-            phone = NUMBER_PREFIX + f"{secrets.randbelow(1_000_000_000):09d}"
+            phone = NUMBER_PREFIX + f"{secrets.randbelow(100_000_000):08d}"
             try:
                 created = await conn.fetchval(
                     """
