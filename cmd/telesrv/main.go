@@ -1466,6 +1466,7 @@ func run(logger *zap.Logger) error {
 		auth.WithLoginCodeDelivery(messageStore),
 		auth.WithPasswords(passwordStore),
 		auth.WithBotLogin(botStore),
+		auth.WithVirtualNumberRegistry(postgres.NewVirtualNumberStore(pool)),
 		auth.WithPremiumGrant(cfg.PremiumGrantMonths),
 		auth.WithDefaultStickerSet(passwordStore, cfg.DefaultStickerSetID),
 		auth.WithCodeTTL(cfg.AuthCodeTTL),
