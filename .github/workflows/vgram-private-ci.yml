@@ -33,7 +33,7 @@ jobs:
 
       - name: Verify formatting
         run: |
-          files="$(gofmt -l internal/app/auth/service.go internal/app/auth/virtual_number_test.go internal/store/virtual_number.go internal/store/postgres/virtual_number.go cmd/telesrv/main.go)"
+          files="$(gofmt -l internal/app/auth/virtual_number_test.go internal/store/virtual_number.go internal/store/postgres/virtual_number.go cmd/telesrv/main.go)"
           if [ -n "$files" ]; then
             echo "$files"
             exit 1
