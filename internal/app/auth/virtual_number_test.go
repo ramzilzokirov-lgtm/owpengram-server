@@ -113,3 +113,36 @@ func TestVirtualNumberRegistryRechecksBeforeSignUp(t *testing.T) {
 		t.Fatalf("SignUp err=%v, want ErrVirtualNumberUnavailable", err)
 	}
 }
+
+func TestVirtualNumberLoginDeliversOnlyThroughBotProvider(t *testing.T) {
+	ctx := context.Background()
+	phone := "888123456781"
+	users := memory.NewUserStore()
+	if _, err := users.Create(ctx, domain.User{Phone: phone, FirstName: "Existing"}); err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	registry := &fakeVirtualNumberRegistry{allowed: true}
+	appDelivery := &captureLoginCodeDelivery{result: domain.LoginCodeDeliveryResult{Created: true}}
+	botDelivery := &captureOTPSender{}
+	svc := NewService(
+		users,
+		memory.NewAuthorizationStore(),
+		memory.NewCodeStore(),
+		nil,
+		nil,
+		"fixed-code-must-not-be-used",
+		WithLoginCodeDelivery(appDelivery),
+		WithVirtualNumberRegistry(registry),
+		WithPhoneCodeDelivery(botDelivery, 6),
+	)
+
+	if hash, err := svc.SendCode(ctx, phone); err != nil || hash == "" {
+		t.Fatalf("SendCode hash=%q err=%v", hash, err)
+	}
+	if len(appDelivery.requests) != 0 {
+		t.Fatalf("legacy app-code delivery count=%d, want 0 for VGRAM", len(appDelivery.requests))
+	}
+	if len(botDelivery.requests) != 1 || botDelivery.requests[0].Recipient != phone || len(botDelivery.requests[0].Code) != 6 {
+		t.Fatalf("bot delivery requests=%+v, want one six-digit code for %s", botDelivery.requests, phone)
+	}
+}
