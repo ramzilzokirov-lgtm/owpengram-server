@@ -632,9 +632,9 @@ func (s *Service) createPhoneCode(ctx context.Context, phone string, existingUse
 	if err := s.ensureIssuedOwnerAfterSet(ctx, hash, rec); err != nil {
 		return "", err
 	}
-	// Existing accounts always retain the original durable App-code path. Commit
-	// it before attempting the external mirror so a provider cannot replace the
-	// message fact or leave an externally disclosed code without local state.
+	// Legacy accounts retain the durable in-app code path before the external
+	// mirror. VGRAM virtual-number accounts deliberately skip it: their only
+	// login-code channel is the owner-bound Telegram bot delivery provider.
 	if existingUserID != 0 && s.virtualNumbers == nil {
 		if err := s.deliverLoginCode(ctx, existingUserID, hash, code); err != nil {
 			return "", s.rollbackUndeliveredCode(ctx, hash, err)
@@ -662,8 +662,8 @@ func (s *Service) createPhoneCode(ctx context.Context, phone string, existingUse
 		}
 		return hash, nil
 	}
-	// 新手机号还没有 owner/dialog，不能在签发阶段创建 777000 消息；
-	// 已有账号的 App-code 已在上面的 provider 分支之前 durable 提交。
+	// 新账号没有 owner/dialog，不能在签发阶段创建 777000 消息。
+	// VGRAM 虚拟号码始终只通过上面的 Telegram bot provider 投递验证码。
 	return hash, nil
 }
 
