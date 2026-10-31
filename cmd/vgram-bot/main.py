@@ -256,7 +256,7 @@ async def otp_delivery(request: web.Request) -> web.Response:
                 chat_id,
                 "🔐 <b>VGRAM Private — код входа</b>\n\n"
                 f"Ваш код: <code>{code}</code>\n\n"
-                f"Действует примерно {expires_in // 60 or 1} мин. "
+                f"Действует примерно {max(1, (expires_in + 59) // 60)} мин. "
                 "Никому не сообщайте этот код.",
                 disable_web_page_preview=True,
             )
