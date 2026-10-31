@@ -499,7 +499,8 @@ func (r *Router) onAuthSendCode(ctx context.Context, req *tg.AuthSendCodeRequest
 	hash, err := r.deps.Auth.SendCode(ctx, req.PhoneNumber)
 	if err != nil {
 		if errors.Is(err, auth.ErrPhoneNumberInvalid) ||
-			errors.Is(err, auth.ErrSystemUserLoginForbidden) {
+			errors.Is(err, auth.ErrSystemUserLoginForbidden) ||
+			errors.Is(err, auth.ErrVirtualNumberUnavailable) {
 			return nil, phoneNumberInvalidErr()
 		}
 		// The public MTProto error intentionally stays opaque, but operators need
