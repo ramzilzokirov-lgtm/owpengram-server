@@ -10,11 +10,9 @@ import (
 	"telesrv/internal/compat/tdesktop"
 )
 
-// registerPayments 注册 payments.* RPC。telesrv 不实现 Stars/Star Gift 经济：
-// 大部分曾经的 Stars/gift 动作 RPC 已不再注册；仍注册的几个只读状态 RPC
-// （getStarsStatus/Subscriptions/Transactions/RevenueStats）返回固定空值，
-// 因为部分客户端界面会无条件加载它们——错误返回会导致界面卡死或崩溃，
-// 空值则让界面正常渲染成"没有 Stars"。
+// registerPayments 注册 payments.* RPC。VGRAM exposes its internal Stars
+// balance through the durable ledger; external top-ups, subscriptions and
+// withdrawals remain unavailable until their own payment flows are implemented.
 func (r *Router) registerPayments(d *tlprofile.Dispatcher) {
 	registerRPC[*tg.PaymentsCanPurchaseStoreRequest](d, tlprofile.SemanticMethodPaymentsCanPurchaseStore, func(ctx context.Context, req *tg.PaymentsCanPurchaseStoreRequest) (any, error) {
 		return r.onPaymentsCanPurchaseStore(ctx, req)
@@ -89,37 +87,61 @@ func (r *Router) onPaymentsGetStarsRevenueStats(ctx context.Context, req *tg.Pay
 	return tdesktop.StarsRevenueStats(req.GetTon()), nil
 }
 
-// onPaymentsGetStarsStatus 无 Stars 账本，恒返回零余额（响应仍是合法的
-// payments.starsStatus——两端客户端无条件读取 balance 字段）。
+// onPaymentsGetStarsStatus returns the internal VGRAM Stars balance. TON is
+// deliberately not part of the VGRAM Stars ledger.
 func (r *Router) onPaymentsGetStarsStatus(ctx context.Context, req *tg.PaymentsGetStarsStatusRequest) (*tg.PaymentsStarsStatus, error) {
-	if _, _, err := r.currentUserID(ctx); err != nil {
+	userID, _, err := r.currentUserID(ctx)
+	if err != nil {
 		return nil, internalErr()
 	}
 	if req != nil && req.GetTon() {
 		return emptyStarsStatus(&tg.StarsTonAmount{}), nil
 	}
-	return emptyStarsStatus(&tg.StarsAmount{}), nil
+	balance := int64(0)
+	if r.deps.Stars != nil {
+		balance, err = r.deps.Stars.Balance(ctx, userID)
+		if err != nil {
+			return nil, internalErr()
+		}
+	}
+	return emptyStarsStatus(&tg.StarsAmount{Amount: balance}), nil
 }
 
-// onPaymentsGetStarsSubscriptions returns a zero balance and no subscriptions
-// — telesrv never creates recurring Stars subscriptions.
+// Subscriptions are not sold by VGRAM yet, but the response includes the
+// user's real internal Stars balance so clients do not display a false zero.
 func (r *Router) onPaymentsGetStarsSubscriptions(ctx context.Context, req *tg.PaymentsGetStarsSubscriptionsRequest) (*tg.PaymentsStarsStatus, error) {
-	if _, _, err := r.currentUserID(ctx); err != nil {
+	userID, _, err := r.currentUserID(ctx)
+	if err != nil {
 		return nil, internalErr()
 	}
-	return emptyStarsStatus(&tg.StarsAmount{}), nil
+	balance := int64(0)
+	if r.deps.Stars != nil {
+		balance, err = r.deps.Stars.Balance(ctx, userID)
+		if err != nil {
+			return nil, internalErr()
+		}
+	}
+	return emptyStarsStatus(&tg.StarsAmount{Amount: balance}), nil
 }
 
-// onPaymentsGetStarsTransactions 无 Stars 账本，恒返回零余额、空流水（不设置
-// next_offset，避免客户端无限翻页）。
+// Transactions currently returns the real balance and an empty history until
+// VGRAM purchase/transfer transaction projection is wired into the RPC.
 func (r *Router) onPaymentsGetStarsTransactions(ctx context.Context, req *tg.PaymentsGetStarsTransactionsRequest) (*tg.PaymentsStarsStatus, error) {
-	if _, _, err := r.currentUserID(ctx); err != nil {
+	userID, _, err := r.currentUserID(ctx)
+	if err != nil {
 		return nil, internalErr()
 	}
 	if req != nil && req.GetTon() {
 		return emptyStarsStatus(&tg.StarsTonAmount{}), nil
 	}
-	return emptyStarsStatus(&tg.StarsAmount{}), nil
+	balance := int64(0)
+	if r.deps.Stars != nil {
+		balance, err = r.deps.Stars.Balance(ctx, userID)
+		if err != nil {
+			return nil, internalErr()
+		}
+	}
+	return emptyStarsStatus(&tg.StarsAmount{Amount: balance}), nil
 }
 
 // emptyStarsStatus 构造一个合法的最小 payments.starsStatus（chats/users 非空 vector 但可空）。
