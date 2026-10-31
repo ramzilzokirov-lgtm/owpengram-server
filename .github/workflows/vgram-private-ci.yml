@@ -41,3 +41,19 @@ jobs:
 
       - name: Run server tests
         run: go test ./... -count=1
+
+  bot-check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install bot dependencies
+        run: pip install -r cmd/vgram-bot/requirements.txt
+
+      - name: Check bot syntax
+        run: python -m compileall -q cmd/vgram-bot
