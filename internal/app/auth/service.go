@@ -1229,6 +1229,16 @@ func (s *Service) verifyLoginCode(ctx context.Context, phone, phoneCodeHash, cod
 	if afterFound {
 		afterUserID = after.ID
 	}
+	if s.virtualNumbers != nil {
+		allowed, checkErr := s.virtualNumbers.CanLogin(ctx, phone, afterUserID)
+		if checkErr != nil {
+			return store.PhoneCode{}, domain.User{}, false, fmt.Errorf("recheck VGRAM virtual number: %w", checkErr)
+		}
+		if !allowed {
+			s.invalidateLoginCodeDetached(ctx, phoneCodeHash, phone)
+			return store.PhoneCode{}, domain.User{}, false, ErrVirtualNumberUnavailable
+		}
+	}
 	recordOwnerMismatch := result.Status != store.LoginCodeVerifyMissing && result.Record.IssuedUserID != rec.IssuedUserID
 	if beforeUserID != afterUserID || recordOwnerMismatch {
 		// keepForSignUp may have left a verified marker behind. Remove it on
