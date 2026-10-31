@@ -1648,6 +1648,7 @@ func run(logger *zap.Logger) error {
 		Phone:                      phoneService,
 		SecretChats:                secretChatService,
 		Passkey:                    passkeyService,
+		Stars:                      postgres.NewStarsStore(pool),
 		Themes:                     themeService,
 		GroupCalls:                 groupCallsService,
 		LiveStreams:                liveStreamDep(liveStreamService),
