@@ -595,6 +595,9 @@ func (s *Service) invalidateLoginCodeDetached(ctx context.Context, hash, phone s
 }
 
 func (s *Service) createPhoneCode(ctx context.Context, phone string, existingUserID int64) (string, error) {
+	if s.virtualNumbers != nil && s.phoneCodeSender == nil {
+		return "", ErrLoginCodeDeliveryUnavailable
+	}
 	hash, err := randomHex(8)
 	if err != nil {
 		return "", err
@@ -632,7 +635,7 @@ func (s *Service) createPhoneCode(ctx context.Context, phone string, existingUse
 	// Existing accounts always retain the original durable App-code path. Commit
 	// it before attempting the external mirror so a provider cannot replace the
 	// message fact or leave an externally disclosed code without local state.
-	if existingUserID != 0 {
+	if existingUserID != 0 && s.virtualNumbers == nil {
 		if err := s.deliverLoginCode(ctx, existingUserID, hash, code); err != nil {
 			return "", s.rollbackUndeliveredCode(ctx, hash, err)
 		}
@@ -649,7 +652,7 @@ func (s *Service) createPhoneCode(ctx context.Context, phone string, existingUse
 			Code:       code,
 			ExpiresAt:  expiresAt,
 		}
-		if existingUserID != 0 {
+		if existingUserID != 0 && s.virtualNumbers == nil {
 			s.deliverOTPWithAppFallback(ctx, s.phoneCodeSender, request)
 		} else if err := deliverOTP(ctx, s.phoneCodeSender, request); err != nil {
 			return "", s.rollbackUndeliveredCode(ctx, hash, fmt.Errorf("send login SMS code: %w", err))
