@@ -18,6 +18,7 @@ This branch is the VGRAM Private integration branch. Upstream OwpenGram behavior
 - Auth send-code, sign-in verification, and registration checks against the issued-number registry.
 - First successful registration binds the virtual number to the new VGRAM account; later sign-ins must match that account.
 - VGRAM accounts require an external OTP sender; they do not fall back to the legacy 777000 in-app login code.
+- The Stars status RPC reads the PostgreSQL ledger and grants 1,000 internal VGRAM Stars exactly once on first balance access; the grant is recorded in the transaction ledger.
 - Telegram bot service in `cmd/vgram-bot`: `/start` issues a `+888` number, and the signed OTP webhook sends login codes to that Telegram chat.
 - Durable OTP delivery receipts, request HMAC verification, idempotency checks, and a per-number resend interval.
 - Optional Compose profile `vgram` for the bot service.
@@ -40,7 +41,7 @@ The bot profile is optional in the generic Compose topology. VGRAM virtual-numbe
 - End-to-end test of bot-issued numbers against a running PostgreSQL server and the Android client.
 - Confirm the Android login screen accepts the `+888` prefix without a country-code workaround.
 - Add a `VG...` alias format only after client/server normalization is implemented; the current registry and MTProto phone field use digits.
-- Confirm the actual initial 1,000 Stars grant in the ledger implementation and add an explicit idempotent registration grant if the existing grant is not exactly 1,000.
+- Add transactional Stars spending, transfers, transaction-history projection, and admin adjustments; the current RPC exposes the balance but not yet the complete economy.
 - Audit collectible username/NFT code and add a separate marketplace only where upstream behavior is missing.
 - Verify one-to-one calls, secret-chat E2E behavior, and Android 12 cold-start/login regressions.
 - Production deployment, secret rotation, and release APK signing.
