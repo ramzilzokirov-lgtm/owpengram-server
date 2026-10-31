@@ -3,7 +3,7 @@ CREATE TABLE vgram_virtual_numbers (
     telegram_user_id bigint NOT NULL,
     telegram_chat_id bigint NOT NULL,
     status text NOT NULL DEFAULT 'issued',
-    user_id bigint UNIQUE REFERENCES users(id) ON DELETE RESTRICT,
+    user_id bigint UNIQUE REFERENCES users(id) ON DELETE CASCADE,
     created_at timestamptz NOT NULL DEFAULT now(),
     activated_at timestamptz,
     revoked_at timestamptz,
