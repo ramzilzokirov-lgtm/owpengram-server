@@ -1,6 +1,6 @@
 # VGRAM Private Telegram bot
 
-The bot issues one virtual `+888` number per Telegram account and delivers VGRAM login codes to the same private chat.
+The bot issues one virtual `+888 XXXX XXXX` number per Telegram account and delivers VGRAM login codes to the same private chat.
 
 ## Required environment
 
