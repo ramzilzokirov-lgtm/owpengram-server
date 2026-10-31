@@ -282,7 +282,8 @@ async def otp_delivery(request: web.Request) -> web.Response:
 async def health(request: web.Request) -> web.Response:
     assert pool is not None
     async with pool.acquire() as conn:
-        await conn.fetchval("SELECT 1")
+        await conn.fetchval("SELECT 1 FROM vgram_virtual_numbers LIMIT 0")
+        await conn.fetchval("SELECT 1 FROM vgram_otp_deliveries LIMIT 0")
     return web.json_response({"ok": True, "service": "vgram-bot"})
 
 
@@ -293,6 +294,10 @@ async def main() -> None:
 
     pool = await asyncpg.create_pool(DATABASE_URL, min_size=1, max_size=5, command_timeout=10)
     bot = Bot(BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
+    await bot.get_me()
+    async with pool.acquire() as conn:
+        await conn.fetchval("SELECT 1 FROM vgram_virtual_numbers LIMIT 0")
+        await conn.fetchval("SELECT 1 FROM vgram_otp_deliveries LIMIT 0")
     router = Router()
     router.message.register(start_handler, CommandStart())
     router.message.register(number_handler, Command("number"))
