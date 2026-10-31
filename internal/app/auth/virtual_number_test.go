@@ -53,14 +53,16 @@ func TestVirtualNumberRegistryActivatesNumberAfterVerifiedSignUp(t *testing.T) {
 	ctx := context.Background()
 	registry := &fakeVirtualNumberRegistry{allowed: true}
 	users := memory.NewUserStore()
+	botDelivery := &captureOTPSender{}
 	svc := NewService(
 		users,
 		memory.NewAuthorizationStore(),
 		memory.NewCodeStore(),
 		nil,
 		nil,
-		"12345",
+		"fixed-code-must-not-be-used",
 		WithVirtualNumberRegistry(registry),
+		WithPhoneCodeDelivery(botDelivery, 6),
 	)
 
 	phone := "888123456789"
@@ -70,7 +72,7 @@ func TestVirtualNumberRegistryActivatesNumberAfterVerifiedSignUp(t *testing.T) {
 	}
 	var authKey [8]byte
 	authKey[0] = 0x71
-	if _, _, needSignUp, err := svc.SignIn(ctx, domain.Authorization{AuthKeyID: authKey}, phone, hash, "12345"); err != nil || !needSignUp {
+	if _, _, needSignUp, err := svc.SignIn(ctx, domain.Authorization{AuthKeyID: authKey}, phone, hash, botDelivery.requests[0].Code); err != nil || !needSignUp {
 		t.Fatalf("SignIn needSignUp=%v err=%v, want signup required", needSignUp, err)
 	}
 	u, _, err := svc.SignUp(ctx, domain.Authorization{AuthKeyID: authKey}, phone, hash, "VGRAM", "User")
@@ -89,14 +91,16 @@ func TestVirtualNumberRegistryActivatesNumberAfterVerifiedSignUp(t *testing.T) {
 func TestVirtualNumberRegistryRechecksBeforeSignUp(t *testing.T) {
 	ctx := context.Background()
 	registry := &fakeVirtualNumberRegistry{allowed: true}
+	botDelivery := &captureOTPSender{}
 	svc := NewService(
 		memory.NewUserStore(),
 		memory.NewAuthorizationStore(),
 		memory.NewCodeStore(),
 		nil,
 		nil,
-		"12345",
+		"fixed-code-must-not-be-used",
 		WithVirtualNumberRegistry(registry),
+		WithPhoneCodeDelivery(botDelivery, 6),
 	)
 	phone := "888123456780"
 	hash, err := svc.SendCode(ctx, phone)
@@ -105,7 +109,7 @@ func TestVirtualNumberRegistryRechecksBeforeSignUp(t *testing.T) {
 	}
 	var authKey [8]byte
 	authKey[0] = 0x72
-	if _, _, needSignUp, err := svc.SignIn(ctx, domain.Authorization{AuthKeyID: authKey}, phone, hash, "12345"); err != nil || !needSignUp {
+	if _, _, needSignUp, err := svc.SignIn(ctx, domain.Authorization{AuthKeyID: authKey}, phone, hash, botDelivery.requests[0].Code); err != nil || !needSignUp {
 		t.Fatalf("SignIn needSignUp=%v err=%v", needSignUp, err)
 	}
 	registry.allowed = false
