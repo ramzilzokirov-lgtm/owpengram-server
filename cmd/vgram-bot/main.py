@@ -6,6 +6,7 @@ import os
 import re
 import secrets
 import time
+from collections.abc import Mapping
 from datetime import datetime, timezone
 from typing import Any
 
@@ -120,7 +121,7 @@ async def code_handler(message: Message) -> None:
     )
 
 
-def verify_signature(headers: web.Request.headers, body: bytes) -> bool:
+def verify_signature(headers: Mapping[str, str], body: bytes) -> bool:
     if not OTP_SECRET:
         return False
     raw_timestamp = headers.get("X-Telesrv-Timestamp", "")
@@ -149,11 +150,20 @@ async def otp_delivery(request: web.Request) -> web.Response:
         data = json.loads(body)
     except (json.JSONDecodeError, UnicodeDecodeError):
         return response(False, error_code="JSON_INVALID")
+    if not isinstance(data, dict):
+        return response(False, error_code="JSON_INVALID")
 
     delivery_id = str(data.get("delivery_id", ""))
     phone = str(data.get("recipient", ""))
     code = str(data.get("code", ""))
-    expires_in = int(data.get("expires_in", 0) or 0)
+    try:
+        expires_in = int(data.get("expires_in", 0) or 0)
+        expires_at = datetime.fromisoformat(str(data.get("expires_at", "")).replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return response(False, error_code="REQUEST_INVALID")
+    now = datetime.now(timezone.utc)
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
     if (
         data.get("version") != "1"
         or data.get("purpose") != "login_sms"
@@ -163,6 +173,8 @@ async def otp_delivery(request: web.Request) -> web.Response:
         or not delivery_id
         or delivery_id != request.headers.get("Idempotency-Key")
         or not 1 <= expires_in <= CODE_TTL_MAX_SECONDS
+        or expires_at <= now
+        or expires_at > now.replace(microsecond=0) + __import__("datetime").timedelta(seconds=CODE_TTL_MAX_SECONDS + 30)
     ):
         return response(False, error_code="REQUEST_INVALID")
 
