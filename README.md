@@ -22,7 +22,9 @@ A self-hosted MTProto server based on the OwpenGram / gramsrv codebase, customiz
 - The number becomes bound to the VGRAM account after successful first registration.
 - Login codes are delivered to the same Telegram private chat that received the number.
 - OTP webhook requests use HMAC-SHA256 signatures, short expiry, idempotency receipts and rate limits.
+- The Stars status RPC reads the internal PostgreSQL ledger and grants 1,000 VGRAM Stars exactly once on first balance access.
 - VGRAM internal Stars remain separate from Telegram platform XTR.
+- Spending, transfers, top-ups and full transaction-history projection are still being implemented.
 
 ## Run
 
