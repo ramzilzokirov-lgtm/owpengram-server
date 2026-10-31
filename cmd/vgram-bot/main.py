@@ -21,7 +21,7 @@ from aiogram.types import Message
 BOT_TOKEN = os.environ.get("VGRAM_BOT_TOKEN", "").strip()
 DATABASE_URL = os.environ.get("VGRAM_DATABASE_URL", "").strip()
 OTP_SECRET = os.environ.get("VGRAM_OTP_WEBHOOK_SECRET", "").encode()
-HTTP_ADDR = os.environ.get("VGRAM_BOT_HTTP_ADDR", "0.0.0.0:8080")
+HTTP_ADDR = os.environ.get("VGRAM_BOT_HTTP_ADDR", "127.0.0.1:2801")
 NUMBER_PREFIX = "888"
 CODE_TTL_MAX_SECONDS = 5 * 60
 MAX_BODY_BYTES = 64 * 1024
