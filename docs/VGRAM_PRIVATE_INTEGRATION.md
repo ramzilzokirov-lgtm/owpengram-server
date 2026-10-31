@@ -7,7 +7,7 @@ This branch is the VGRAM Private integration branch. Upstream OwpenGram behavior
 - MTProto API layer 229 is the canonical profile; compatibility profiles cover older layers.
 - PostgreSQL migrations include a local Stars balance/transaction ledger (`0009_stars_ledger`).
 - Star Gifts have persistence and protocol paths (`0011_star_gifts` and later migrations).
-- Collectible usernames have server-side support; this is not a general-purpose arbitrary NFT marketplace.
+- Collectible usernames have a server-side asset lifecycle (mint, transfer, revoke, delete, provenance history), but the public buyer-facing shop and Stars purchase flow are not yet implemented. This is not a general-purpose arbitrary image-NFT marketplace.
 - Login supports configurable external OTP delivery through a signed webhook or SMTP.
 - Login code TTL and attempt limits are configurable.
 - The Android client documents Android 5.0+ support.
@@ -42,7 +42,7 @@ The bot profile is optional in the generic Compose topology. VGRAM virtual-numbe
 - Confirm the Android login screen accepts the `+888` prefix without a country-code workaround.
 - Add a `VG...` alias format only after client/server normalization is implemented; the current registry and MTProto phone field use digits.
 - Add transactional Stars spending, transfers, transaction-history projection, and admin adjustments; the current RPC exposes the balance but not yet the complete economy.
-- Audit collectible username/NFT code and add a separate marketplace only where upstream behavior is missing.
+- Build the buyer-facing collectible username shop, reserve/lease/sale flows, and Stars settlement on top of the existing collectible asset lifecycle; only add a separate NFT asset type if image/media NFTs are actually required.
 - Verify one-to-one calls, secret-chat E2E behavior, and Android 12 cold-start/login regressions.
 - Production deployment, secret rotation, and release APK signing.
 
